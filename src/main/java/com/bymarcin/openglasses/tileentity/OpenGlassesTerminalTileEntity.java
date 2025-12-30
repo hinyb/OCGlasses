@@ -11,6 +11,7 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraftforge.event.ServerChatEvent;
 
 import com.bymarcin.openglasses.OpenGlasses;
+import com.bymarcin.openglasses.integration.computronics.ComputronicsHelper;
 import com.bymarcin.openglasses.item.OpenGlassesItem;
 import com.bymarcin.openglasses.lua.LuaReference;
 import com.bymarcin.openglasses.network.packet.TerminalStatusPacket.TerminalStatus;
@@ -40,10 +41,11 @@ import li.cil.oc.api.machine.Context;
 import li.cil.oc.api.network.Connector;
 import li.cil.oc.api.network.Visibility;
 import li.cil.oc.api.prefab.TileEntityEnvironment;
-import pl.asie.computronics.api.chat.ChatAPI;
 import pl.asie.computronics.api.chat.IChatListener;
 
-@Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers")
+@Optional.InterfaceList({
+        @Optional.Interface(iface = "pl.asie.computronics.api.chat.IChatListener", modid = "computronics"),
+        @Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers") })
 public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment implements IChatListener {
 
     public HashMap<Integer, Widget> widgetList = new HashMap<>();
@@ -79,7 +81,7 @@ public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment impleme
         }
         if (OpenGlasses.computronics) {
             if (chatBoxCount == 0) {
-                ChatAPI.registry.registerChatListener(this);
+                ComputronicsHelper.register(this);
             }
             chatBoxCount = chatBoxCount + 1;
         }
@@ -92,7 +94,7 @@ public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment impleme
         if (OpenGlasses.computronics) {
             chatBoxCount = chatBoxCount - 1;
             if (chatBoxCount == 0) {
-                ChatAPI.registry.unregisterChatListener(this);
+                ComputronicsHelper.unregister(this);
             }
         }
     }
@@ -382,12 +384,8 @@ public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment impleme
         super.updateEntity();
         if (worldObj.isRemote) return;
         boolean lastStatus = isPowered;
-        if ((node() != null)
-                && ((Connector) node()).tryChangeBuffer(-widgetList.size() / 10f * OpenGlasses.energyMultiplier)) {
-            isPowered = true;
-        } else {
-            isPowered = false;
-        }
+        isPowered = (node() != null)
+                && ((Connector) node()).tryChangeBuffer(-widgetList.size() / 10f * OpenGlasses.energyMultiplier);
 
         if (lastStatus != isPowered) {
             ServerSurface.instance
@@ -400,7 +398,12 @@ public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment impleme
         return isPowered;
     }
 
+    public void onPreDestroy() {
+        if (OpenGlasses.computronics) ComputronicsHelper.unregister(this);
+    }
+
     @Override
+    @Optional.Method(modid = "computronics")
     public void receiveChatMessage(ServerChatEvent event) {
         if (!worldObj.blockExists(xCoord, yCoord, zCoord)) {
             return;
@@ -417,13 +420,9 @@ public class OpenGlassesTerminalTileEntity extends TileEntityEnvironment impleme
     }
 
     @Override
+    @Optional.Method(modid = "computronics")
     public boolean isValid() {
         return true;
     }
 
-    public void onPreDestroy() {
-        if (OpenGlasses.computronics) {
-            ChatAPI.registry.unregisterChatListener(this);
-        }
-    }
 }
